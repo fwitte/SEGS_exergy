@@ -1,1 +1,0 @@
-# SEGS_exergy
