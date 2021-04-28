@@ -21,10 +21,10 @@ directory of the repository run
 
 to install the version requirements for the SEGS.py python script.
 
-On top of the python script, an EBSILON model for the identical setup is
-provided for validation. The results are available in the respective flowsheet.
-The solar field is not considered for further investigation, thus it represents
-a heat input only.
+On top of the python script, an EBSILON model (v14.03.01) for the identical
+setup is provided for validation. The results are available in the respective
+flowsheet. The solar field is not considered for further investigation, thus it
+represents a heat input only.
 
 .. figure:: ./flowsheet_EBSILON.svg
     :align: center
