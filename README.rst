@@ -33,10 +33,8 @@ represents a heat input only.
 Citation
 --------
 The state of this repository is archived via zenodo. If you are using the
-TESPy model within your own research, we appreciate citation of the following
-doi: ...
-
-BibTeX citation::
+TESPy model within your own research, you can refer to this model via the
+zenodo doi: `10.5281/zenodo.4726801 <https://zenodo.org/record/4726801>`_.
 
 MIT License
 -----------
