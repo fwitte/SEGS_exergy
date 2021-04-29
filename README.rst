@@ -30,6 +30,16 @@ represents a heat input only.
     :align: center
     :alt: Topology of the Solar Energy Generating System (SEGS) in EBSILON
 
+The original data of the plant are partially obtained from the following
+reports:
+
+*F. Lippke, Simulation of the part-load behavior of a 30 MWe SEGS plant,
+Technical Report SAND-95-1293, Sandia National Lab., Albuquerque, 1995.
+URL:https://www.osti.gov/biblio/95571. doi:10.2172/95571.*
+
+*D. Kearney, C. E. Miller, Technical Evaluation of Project Feasibilty for
+SEGS VI, Technical Report,1988. Submitted to Luz Solar Partners VI.*
+
 Citation
 --------
 The state of this repository is archived via zenodo. If you are using the
