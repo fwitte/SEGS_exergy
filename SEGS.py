@@ -303,6 +303,8 @@ c26.set_attr(x=0)
 # a stable solution is generated for parts of the network
 SEGSvi.solve(mode='design')
 
+# SEGSvi.save('SEGSvi')
+
 # delete old connections and finalize model
 SEGSvi.del_conns(c27, c29, c37, c42)
 
@@ -327,7 +329,24 @@ SEGSvi.solve(mode='design')
 
 # print results to prompt and generate model documentation
 SEGSvi.print_results()
-document_model(SEGSvi)
+
+fmt = {
+    'latex_body': True,
+    'include_results': True,
+    'HeatExchanger': {
+        'params': ['Q', 'ttd_l', 'ttd_u', 'pr1', 'pr2']},
+    'Condenser': {
+        'params': ['Q', 'ttd_l', 'ttd_u', 'pr1', 'pr2']},
+    'Connection': {
+        'p': {'float_fmt': '{:,.4f}'},
+        's': {'float_fmt': '{:,.4f}'},
+        'h': {'float_fmt': '{:,.2f}'},
+        'fluid': {'include_results': False}
+    },
+    'include_results': True,
+    'draft': False
+}
+document_model(SEGSvi, fmt=fmt)
 
 # carry out exergy analysis
 ean = ExergyAnalysis(SEGSvi, E_P=[power], E_F=[heat_input_bus], E_L=[exergy_loss_bus])
