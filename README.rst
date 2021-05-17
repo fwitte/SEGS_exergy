@@ -10,6 +10,9 @@ The Solar Energy Generating System (SEGS) model has the following topology:
     :align: center
     :alt: Topology of the Solar Energy Generating System (SEGS) in TESPy
 
+Find the model specifications and results in the SEGS.py script and the
+corresponding `pdf model report <SEGS_model_report.pdf>`_
+
 Usage
 -----
 Clone the repository and build a new python environment. From the base
