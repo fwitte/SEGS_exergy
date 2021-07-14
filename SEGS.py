@@ -110,15 +110,15 @@ c15 = Connection(sp6, 'out1', lpt5, 'in1', label='15')
 c16 = Connection(lpt5, 'out1', m1, 'in1', label='16')
 c17 = Connection(m1, 'out1', cond, 'in1', label='17')
 c18 = Connection(cond, 'out1', condpump, 'in1', label='18')
-# c19 = Connection(condpump, 'out1', lppre1, 'in2', label='19')
-c19 = Connection(condpump, 'out1', lppre1_sub, 'in2', label='19')
-c20 = Connection(lppre1_sub, 'out2', lppre1, 'in2', label='20')
-# c21 = Connection(lppre1, 'out2', lppre2, 'in2', label='21')
-c21 = Connection(lppre1, 'out2', lppre2_sub, 'in2', label='21')
-c22 = Connection(lppre2_sub, 'out2', lppre2, 'in2', label='22')
-# c23 = Connection(lppre2, 'out2', lppre3, 'in2', label='23')
-c23 = Connection(lppre2, 'out2', lppre3_sub, 'in2', label='23')
-c24 = Connection(lppre3_sub, 'out2', lppre3, 'in2', label='24')
+c19 = Connection(condpump, 'out1', lppre1, 'in2', label='19')
+# c19 = Connection(condpump, 'out1', lppre1_sub, 'in2', label='19')
+# c20 = Connection(lppre1_sub, 'out2', lppre1, 'in2', label='20')
+c21 = Connection(lppre1, 'out2', lppre2, 'in2', label='21')
+# c21 = Connection(lppre1, 'out2', lppre2_sub, 'in2', label='21')
+# c22 = Connection(lppre2_sub, 'out2', lppre2, 'in2', label='22')
+c23 = Connection(lppre2, 'out2', lppre3, 'in2', label='23')
+# c23 = Connection(lppre2, 'out2', lppre3_sub, 'in2', label='23')
+# c24 = Connection(lppre3_sub, 'out2', lppre3, 'in2', label='24')
 c25 = Connection(lppre3, 'out2', fwt, 'in1', label='25')
 c26 = Connection(fwt, 'out1', fwp, 'in1', label='26')
 c27 = Connection(fwp, 'out1', hppre1, 'in2', label='27')
@@ -134,21 +134,21 @@ c42 = Connection(hppre1, 'out1', v2, 'in1', label='42')
 c44 = Connection(v2, 'out1', fwt, 'in2', label='44')
 c45 = Connection(sp3, 'out2', fwt, 'in3', label='45')
 c46 = Connection(sp4, 'out2', lppre3, 'in1', label='46')
-# c47 = Connection(lppre3, 'out1', v3, 'in1', label='47')
-c47 = Connection(lppre3, 'out1', lppre3_sub, 'in1', label='47')
-c48 = Connection(lppre3_sub, 'out1', v3, 'in1', label='48')
+c47 = Connection(lppre3, 'out1', v3, 'in1', label='47')
+# c47 = Connection(lppre3, 'out1', lppre3_sub, 'in1', label='47')
+# c48 = Connection(lppre3_sub, 'out1', v3, 'in1', label='48')
 c49 = Connection(v3, 'out1', m3, 'in1', label='49')
 c50 = Connection(sp5, 'out2', m3, 'in2', label='50')
 c51 = Connection(m3, 'out1', lppre2, 'in1', label='51')
-# c52 = Connection(lppre2, 'out1', v4, 'in1', label='52')
-c52 = Connection(lppre2, 'out1', lppre2_sub, 'in1', label='52')
-c53 = Connection(lppre2_sub, 'out1', v4, 'in1', label='53')
+c52 = Connection(lppre2, 'out1', v4, 'in1', label='52')
+# c52 = Connection(lppre2, 'out1', lppre2_sub, 'in1', label='52')
+# c53 = Connection(lppre2_sub, 'out1', v4, 'in1', label='53')
 c54 = Connection(v4, 'out1', m4, 'in2', label='54')
 c55 = Connection(sp6, 'out2', m4, 'in1', label='55')
 c56 = Connection(m4, 'out1', lppre1, 'in1', label='56')
-# c57 = Connection(lppre1, 'out1', v5, 'in1', label='57')
-c57 = Connection(lppre1, 'out1', lppre1_sub, 'in1', label='57')
-c58 = Connection(lppre1_sub, 'out1', v5, 'in1', label='58')
+c57 = Connection(lppre1, 'out1', v5, 'in1', label='57')
+# c57 = Connection(lppre1, 'out1', lppre1_sub, 'in1', label='57')
+# c58 = Connection(lppre1_sub, 'out1', v5, 'in1', label='58')
 c59 = Connection(v5, 'out1', m1, 'in2', label='59')
 
 # components from subsystem
@@ -156,8 +156,8 @@ c32 = Connection(eco, 'out2', drum, 'in1', label='32')
 c33 = Connection(drum, 'out1', eva, 'in2', label='33')
 c34 = Connection(eva, 'out2', drum, 'in2', label='34')
 c35 = Connection(drum, 'out2', sup, 'in2', label='35')
-c70 = Connection(sup, 'out1', eva, 'in1', label='70')
-c71 = Connection(eva, 'out1', eco, 'in1', label='71')
+c73 = Connection(sup, 'out1', eva, 'in1', label='73')
+c74 = Connection(eva, 'out1', eco, 'in1', label='74')
 
 # cooling water
 c60 = Connection(cond, 'out2', closer_cw, 'in1', label='60')
@@ -171,22 +171,22 @@ c65 = Connection(fan, 'out1', ct, 'in2', label='65')
 c66 = Connection(ct, 'out2', air_out, 'in1', label='66')
 
 # parabolic trough cycle
-c67 = Connection(pt, 'out1', closer_pt, 'in1', label='67')
-c68 = Connection(closer_pt, 'out1', sp7, 'in1', label='68')
-c69 = Connection(sp7, 'out1', sup, 'in1', label='69')
-c72 = Connection(eco, 'out1', m5, 'in1', label='72')
-c73 = Connection(sp7, 'out2', reh, 'in1', label='73')
-c74 = Connection(reh, 'out1', m5, 'in2', label='74')
-c75 = Connection(m5, 'out1', ptpump, 'in1', label='75')
-c76 = Connection(ptpump, 'out1', pt, 'in1', label='76')
+c70 = Connection(pt, 'out1', closer_pt, 'in1', label='67')
+c71 = Connection(closer_pt, 'out1', sp7, 'in1', label='71')
+c72 = Connection(sp7, 'out1', sup, 'in1', label='72')
+c75 = Connection(eco, 'out1', m5, 'in1', label='75')
+c76 = Connection(sp7, 'out2', reh, 'in1', label='76')
+c77 = Connection(reh, 'out1', m5, 'in2', label='77')
+c78 = Connection(m5, 'out1', ptpump, 'in1', label='78')
+c79 = Connection(ptpump, 'out1', pt, 'in1', label='79')
 
-    # add connections to network
+# add connections to network
 SEGSvi.add_conns(
     c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17,
-    c18, c19, c20, c21, c22, c23, c24, c25, c26, c27, c29, c31, c32, c33,
-    c34, c35, c36, c37, c39, c40, c41, c42, c44, c45, c46, c47,
-    c48, c49, c50, c51, c52, c53, c54, c55, c56, c57, c58, c59, c60, c61, c62, c63,
-    c64, c65, c66, c67, c68, c69, c70, c71, c72, c73, c74, c75, c76)
+    c18, c19, c21, c23, c25, c26, c27, c29, c31, c32, c33, c34,
+    c35, c36, c37, c39, c40, c41, c42, c44, c45, c46, c47, c49, c50, c51,
+    c52, c54, c55, c56, c57, c59, c60, c61, c62, c63, c64, c65, c66,
+    c70, c71, c72, c73, c74, c75, c76, c77, c78, c79)
 
 # power bus
 power = Bus('total output power')
@@ -252,12 +252,12 @@ hppre2_sub.set_attr(pr1=1, pr2=1, ttd_l=10)
 
 # connection parameters
 # parabolic trough cycle
-c67.set_attr(fluid={'TVP1': 1, 'water': 0, 'air': 0}, T=390, p=23.304)
-c73.set_attr(m=Ref(c67, 0.1284, 0))
-c70.set_attr(p=22.753)
-c71.set_attr(p=21.167)
-c75.set_attr(p=20.34)
-c76.set_attr(p=41.024)
+c70.set_attr(fluid={'TVP1': 1, 'water': 0, 'air': 0}, T=390, p=23.304)
+c76.set_attr(m=Ref(c70, 0.1284, 0))
+c73.set_attr(p=22.753)
+c74.set_attr(p=21.167)
+c78.set_attr(p=20.34)
+c79.set_attr(p=41.024)
 
 
 # cooling water
@@ -306,7 +306,14 @@ SEGSvi.solve(mode='design')
 # SEGSvi.save('SEGSvi')
 
 # delete old connections and finalize model
-SEGSvi.del_conns(c27, c29, c37, c42)
+SEGSvi.del_conns(c19, c21, c23, c27, c29, c37, c42, c47, c52, c57)
+
+c19 = Connection(condpump, 'out1', lppre1_sub, 'in2', label='19')
+c20 = Connection(lppre1_sub, 'out2', lppre1, 'in2', label='20')
+c21 = Connection(lppre1, 'out2', lppre2_sub, 'in2', label='21')
+c22 = Connection(lppre2_sub, 'out2', lppre2, 'in2', label='22')
+c23 = Connection(lppre2, 'out2', lppre3_sub, 'in2', label='23')
+c24 = Connection(lppre3_sub, 'out2', lppre3, 'in2', label='24')
 
 c27 = Connection(fwp, 'out1', hppre1_sub, 'in2', label='27')
 c28 = Connection(hppre1_sub, 'out2', hppre1, 'in2', label='28')
@@ -318,9 +325,21 @@ c38 = Connection(hppre2_sub, 'out1', v1, 'in1', label='38')
 c42 = Connection(hppre1, 'out1', hppre1_sub, 'in1', label='42')
 c43 = Connection(hppre1_sub, 'out1', v2, 'in1', label='43')
 
-SEGSvi.add_conns(c27, c28, c29, c30, c37, c38, c42, c43)
+c47 = Connection(lppre3, 'out1', lppre3_sub, 'in1', label='47')
+c48 = Connection(lppre3_sub, 'out1', v3, 'in1', label='48')
+c52 = Connection(lppre2, 'out1', lppre2_sub, 'in1', label='52')
+c53 = Connection(lppre2_sub, 'out1', v4, 'in1', label='53')
+c57 = Connection(lppre1, 'out1', lppre1_sub, 'in1', label='57')
+c58 = Connection(lppre1_sub, 'out1', v5, 'in1', label='58')
+
+SEGSvi.add_conns(
+    c19, c20, c21, c22, c23, c24, c27, c28, c29, c30, c37, c38, c42, c43, c47,
+    c48, c52, c53, c57, c58)
 
 # specification of missing parameters
+c19.set_attr(p=14.755)
+c21.set_attr(p=9.9975, state='l')
+c23.set_attr(p=8.7012, state='l')
 c27.set_attr(p=125)
 c29.set_attr(p=112)
 
