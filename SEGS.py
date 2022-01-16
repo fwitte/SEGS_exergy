@@ -14,6 +14,115 @@ from tespy.tools import ExergyAnalysis
 import plotly.graph_objects as go
 
 
+fmt_dict = {
+    'E_F': {
+        'unit': ' in MW',
+        'float': '{:.2f}',
+        'factor': 1e6,
+    },
+    'E_P': {
+        'unit': ' in MW',
+        'float': '{:.2f}',
+        'factor': 1e6,
+    },
+    'E_D': {
+        'unit': ' in MW',
+        'float': '{:.2f}',
+        'factor': 1e6,
+    },
+    'E_L': {
+        'unit': ' in MW',
+        'float': '{:.2f}',
+        'factor': 1e6,
+    },
+    'epsilon': {
+        'unit': ' in %',
+        'float': '{:.1f}',
+        'factor': 1 / 100,
+        'markdown_header': 'ε'
+    },
+    'y_Dk': {
+        'unit': ' in %',
+        'float': '{:.1f}',
+        'factor': 1 / 100
+    },
+    'y*_Dk': {
+        'unit': ' in %',
+        'float': '{:.1f}',
+        'factor': 1 / 100
+    },
+    'e_T': {
+        'unit': ' in kJ/kg',
+        'float': '{:.1f}',
+        'factor': 1000
+    },
+    'e_M': {
+        'unit': ' in kJ/kg',
+        'float': '{:.1f}',
+        'factor': 1000
+    },
+    'e_PH': {
+        'unit': ' in kJ/kg',
+        'float': '{:.1f}',
+        'factor': 1000
+    },
+    'E_T': {
+        'unit': ' in MW',
+        'float': '{:.2f}',
+        'factor': 1e6
+    },
+    'E_M': {
+        'unit': ' in MW',
+        'float': '{:.2f}',
+        'factor': 1e6
+    },
+    'E_PH': {
+        'unit': ' in MW',
+        'float': '{:.2f}',
+        'factor': 1e6
+    },
+    'T': {
+        'unit': ' in °C',
+        'float': '{:.1f}',
+        'factor': 1
+    },
+    'p': {
+        'unit': ' in bar',
+        'float': '{:.2f}',
+        'factor': 1
+    },
+    'h': {
+        'unit': ' in kJ/kg',
+        'float': '{:.1f}',
+        'factor': 1
+    }
+}
+
+
+def result_to_markdown(df, filename, prefix=''):
+
+    for col in df.columns:
+        fmt = fmt_dict[col]['float']
+        if prefix == 'δ ':
+            unit = ' in %'
+            df[col] *= 100
+        else:
+            unit = fmt_dict[col]['unit']
+            df[col] /= fmt_dict[col]['factor']
+        for row in df.index:
+            df.loc[row, col] = str(fmt.format(df.loc[row, col]))
+        if 'markdown_header' not in fmt_dict[col]:
+            fmt_dict[col]['markdown_header'] = col
+
+        df = df.rename(columns={
+            col: prefix + fmt_dict[col]['markdown_header'] + unit
+        })
+    df.to_markdown(
+        filename, disable_numparse=True,
+        colalign=['left'] + ['right' for _ in df.columns]
+    )
+
+
 # specification of ambient state
 pamb = 1.013
 Tamb = 25
@@ -389,3 +498,13 @@ fig = go.Figure(go.Sankey(
         'color': 'orange'},
     link=links))
 fig.show()
+
+
+# export results
+
+network_result = ean.network_data.to_frame().transpose()
+
+ean.aggregation_data.drop(columns=['group'], inplace=True)
+result_to_markdown(ean.aggregation_data, 'components_result')
+result_to_markdown(ean.connection_data, 'connections_result')
+result_to_markdown(network_result, 'network_result')
