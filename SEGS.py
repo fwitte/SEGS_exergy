@@ -377,8 +377,12 @@ ean.print_results()
 # generate Grassmann diagram
 links, nodes = ean.generate_plotly_sankey_input()
 
+# norm values to to E_F
+links['value'] = [val / links['value'][0] for val in links['value']]
+
 fig = go.Figure(go.Sankey(
     arrangement="snap",
+    textfont={"family": "Linux Libertine O"},
     node={
         "label": nodes,
         'pad': 11,
