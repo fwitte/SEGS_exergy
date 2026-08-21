@@ -1,472 +1,523 @@
 # -*- coding: utf-8 -*-
+"""Exergy analysis of the Solar Energy Generating System (SEGS).
 
-from tespy.networks import Network
+The thermodynamic model is identical to the implementation in the tespy
+testing suite (tests/test_models/test_solar_energy_generating_system.py)
+and solves in a single solve call. The exergy analysis is carried out
+with exerpy.
+"""
+
+import pandas as pd
+from fluprodia import FluidPropertyDiagram
+
 from tespy.components import (
-    Sink, Source, Turbine, Condenser, Pump, Merge, Splitter,
-    Valve, HeatExchanger, ParabolicTrough, CycleCloser, Compressor, Drum)
-from tespy.connections import Connection, Bus, Ref
-from tespy.tools import ExergyAnalysis
+    Compressor, Condenser, CycleCloser, Drum, Generator, HeatExchanger,
+    HeatSource, Merge, Motor, ParabolicTrough, PowerBus, PowerSink, Pump,
+    Sink, Source, Splitter, Turbine, Valve
+)
+from tespy.connections import Connection, HeatConnection, PowerConnection, Ref
+from tespy.models.template import ModelTemplate
+from tespy.networks import Network
 
-import plotly.graph_objects as go
+
+class SEGSModel(ModelTemplate):
+    """SEGS solar thermal power plant model.
+
+    Full model validation of the SEGS model in TESPy vs. EBSILON.
+    """
+
+    # specification of ambient state
+    pamb = 1.013  # bar
+    Tamb = 25  # °C
+
+    def _create_network(self):
+        self.nw = Network()
+        self.nw.units.set_defaults(**{
+            "pressure": "bar", "pressure_difference": "bar",
+            "temperature": "degC", "enthalpy": "kJ/kg", "entropy": "kJ/kgK"
+        })
+
+        # components definition
+        air_in = Source("Ambient air source", fkt_group="CW")
+        air_out = Sink("Ambient air sink", fkt_group="CW")
+
+        closer_pt = CycleCloser("Cycle closer pt", fkt_group="SF")
+        pt = ParabolicTrough("Parabolic trough", fkt_group="SF")
+        ptpump = Pump("HTF pump", fkt_group="SF")
+
+        closer = CycleCloser("Cycle closer power cycle", fkt_group="SG")
+
+        eco = HeatExchanger("Economizer", fkt_group="SG")
+        eva = HeatExchanger("Evaporator", fkt_group="SG")
+        sup = HeatExchanger("Superheater", fkt_group="SG")
+        drum = Drum("Drum", fkt_group="SG")
+
+        reh = HeatExchanger("Reheater", fkt_group="RH")
+
+        hpt1 = Turbine("HP turbine 1", fkt_group="HPT")
+        hpt2 = Turbine("HP turbine 2", fkt_group="HPT")
+        lpt1 = Turbine("LP turbine 1", fkt_group="LPT")
+        lpt2 = Turbine("LP turbine 2", fkt_group="LPT")
+        lpt3 = Turbine("LP turbine 3", fkt_group="LPT")
+        lpt4 = Turbine("LP turbine 4", fkt_group="LPT")
+        lpt5 = Turbine("LP turbine 5", fkt_group="LPT")
+
+        cond = Condenser("Condenser", fkt_group="CW")
+        condpump = Pump("Condenser pump", fkt_group="CW")
+        fwt = Merge("Feedwater tank", num_in=3, fkt_group="LPP")
+        fwp = Pump("Feedwater pump", fkt_group="FWP")
+        cwp = Pump("Cooling water pump", fkt_group="CW")
+        closer_cw = CycleCloser("Cycle closer cw", fkt_group="CW")
+        ct = HeatExchanger("Cooling tower", fkt_group="CW")
+        fan = Compressor("Cooling tower fan", fkt_group="CW")
+
+        sp1 = Splitter("Splitter 1", fkt_group="HPT")
+        sp2 = Splitter("Splitter 2", fkt_group="HPT")
+        sp3 = Splitter("Splitter 3", fkt_group="LPT")
+        sp4 = Splitter("Splitter 4", fkt_group="LPT")
+        sp5 = Splitter("Splitter 5", fkt_group="LPT")
+        sp6 = Splitter("Splitter 6", fkt_group="LPT")
+        sp7 = Splitter("Splitter 7", fkt_group="SF")
+
+        m1 = Merge("Merge 1", fkt_group="CW")
+        m2 = Merge("Merge 2", fkt_group="HPP")
+        m3 = Merge("Merge 3", fkt_group="LPP")
+        m4 = Merge("Merge 4", fkt_group="LPP")
+        m5 = Merge("Merge 5", fkt_group="SF")
+
+        v1 = Valve("Valve 1", fkt_group="HPP")
+        v2 = Valve("Valve 2", fkt_group="HPP")
+        v3 = Valve("Valve 3", fkt_group="LPP")
+        v4 = Valve("Valve 4", fkt_group="LPP")
+        v5 = Valve("Valve 5", fkt_group="LPP")
+
+        hppre1 = Condenser("High pressure preheater 1", fkt_group="HPP")
+        hppre2 = Condenser("High pressure preheater 2", fkt_group="HPP")
+        hppre1_sub = HeatExchanger(
+            "High pressure preheater 1 subcooling", fkt_group="HPP")
+        hppre2_sub = HeatExchanger(
+            "High pressure preheater 2 subcooling", fkt_group="HPP")
+
+        lppre1 = Condenser("Low pressure preheater 1", fkt_group="LPP")
+        lppre2 = Condenser("Low pressure preheater 2", fkt_group="LPP")
+        lppre3 = Condenser("Low pressure preheater 3", fkt_group="LPP")
+        lppre1_sub = HeatExchanger(
+            "Low pressure preheater 1 subcooling", fkt_group="LPP")
+        lppre2_sub = HeatExchanger(
+            "Low pressure preheater 2 subcooling", fkt_group="LPP")
+        lppre3_sub = HeatExchanger(
+            "Low pressure preheater 3 subcooling", fkt_group="LPP")
+
+        # connections definition
+        # power cycle
+        c1 = Connection(sup, "out2", closer, "in1", label="1")
+        c2 = Connection(closer, "out1", hpt1, "in1", label="2")
+        c3 = Connection(hpt1, "out1", sp1, "in1", label="3")
+        c4 = Connection(sp1, "out1", hpt2, "in1", label="4")
+        c5 = Connection(hpt2, "out1", sp2, "in1", label="5")
+        c6 = Connection(sp2, "out1", reh, "in2", label="6")
+        c7 = Connection(reh, "out2", lpt1, "in1", label="7")
+        c8 = Connection(lpt1, "out1", sp3, "in1", label="8")
+        c9 = Connection(sp3, "out1", lpt2, "in1", label="9")
+        c10 = Connection(lpt2, "out1", sp4, "in1", label="10")
+        c11 = Connection(sp4, "out1", lpt3, "in1", label="11")
+        c12 = Connection(lpt3, "out1", sp5, "in1", label="12")
+        c13 = Connection(sp5, "out1", lpt4, "in1", label="13")
+        c14 = Connection(lpt4, "out1", sp6, "in1", label="14")
+        c15 = Connection(sp6, "out1", lpt5, "in1", label="15")
+        c16 = Connection(lpt5, "out1", m1, "in1", label="16")
+        c17 = Connection(m1, "out1", cond, "in1", label="17")
+
+        c18 = Connection(cond, "out1", condpump, "in1", label="18")
+        c19 = Connection(condpump, "out1", lppre1_sub, "in2", label="19")
+        c20 = Connection(lppre1_sub, "out2", lppre1, "in2", label="20")
+        c21 = Connection(lppre1, "out2", lppre2_sub, "in2", label="21")
+        c22 = Connection(lppre2_sub, "out2", lppre2, "in2", label="22")
+        c23 = Connection(lppre2, "out2", lppre3_sub, "in2", label="23")
+        c24 = Connection(lppre3_sub, "out2", lppre3, "in2", label="24")
+        c25 = Connection(lppre3, "out2", fwt, "in1", label="25")
+
+        c26 = Connection(fwt, "out1", fwp, "in1", label="26")
+        c27 = Connection(fwp, "out1", hppre1_sub, "in2", label="27")
+        c28 = Connection(hppre1_sub, "out2", hppre1, "in2", label="28")
+        c29 = Connection(hppre1, "out2", hppre2_sub, "in2", label="29")
+        c30 = Connection(hppre2_sub, "out2", hppre2, "in2", label="30")
+        c31 = Connection(hppre2, "out2", eco, "in2", label="31")
+
+        c36 = Connection(sp1, "out2", hppre2, "in1", label="36")
+        c37 = Connection(hppre2, "out1", hppre2_sub, "in1", label="37")
+        c38 = Connection(hppre2_sub, "out1", v1, "in1", label="38")
+        c39 = Connection(v1, "out1", m2, "in2", label="39")
+        c40 = Connection(sp2, "out2", m2, "in1", label="40")
+
+        c41 = Connection(m2, "out1", hppre1, "in1", label="41")
+        c42 = Connection(hppre1, "out1", hppre1_sub, "in1", label="42")
+        c43 = Connection(hppre1_sub, "out1", v2, "in1", label="43")
+        c44 = Connection(v2, "out1", fwt, "in2", label="44")
+        c45 = Connection(sp3, "out2", fwt, "in3", label="45")
+
+        c46 = Connection(sp4, "out2", lppre3, "in1", label="46")
+        c47 = Connection(lppre3, "out1", lppre3_sub, "in1", label="47")
+        c48 = Connection(lppre3_sub, "out1", v3, "in1", label="48")
+        c49 = Connection(v3, "out1", m3, "in1", label="49")
+        c50 = Connection(sp5, "out2", m3, "in2", label="50")
+
+        c51 = Connection(m3, "out1", lppre2, "in1", label="51")
+        c52 = Connection(lppre2, "out1", lppre2_sub, "in1", label="52")
+        c53 = Connection(lppre2_sub, "out1", v4, "in1", label="53")
+        c54 = Connection(v4, "out1", m4, "in2", label="54")
+        c55 = Connection(sp6, "out2", m4, "in1", label="55")
+
+        c56 = Connection(m4, "out1", lppre1, "in1", label="56")
+        c57 = Connection(lppre1, "out1", lppre1_sub, "in1", label="57")
+        c58 = Connection(lppre1_sub, "out1", v5, "in1", label="58")
+        c59 = Connection(v5, "out1", m1, "in2", label="59")
+
+        # components from subsystem
+        c32 = Connection(eco, "out2", drum, "in1", label="32")
+        c33 = Connection(drum, "out1", eva, "in2", label="33")
+        c34 = Connection(eva, "out2", drum, "in2", label="34")
+        c35 = Connection(drum, "out2", sup, "in2", label="35")
+        c73 = Connection(sup, "out1", eva, "in1", label="73")
+        c74 = Connection(eva, "out1", eco, "in1", label="74")
+
+        # cooling water
+        c60 = Connection(cond, "out2", closer_cw, "in1", label="60")
+        c61 = Connection(closer_cw, "out1", ct, "in1", label="61")
+        c62 = Connection(ct, "out1", cwp, "in1", label="62")
+        c63 = Connection(cwp, "out1", cond, "in2", label="63")
+
+        # cooling tower
+        c64 = Connection(air_in, "out1", fan, "in1", label="64")
+        c65 = Connection(fan, "out1", ct, "in2", label="65")
+        c66 = Connection(ct, "out2", air_out, "in1", label="66")
+
+        # parabolic trough cycle
+        c70 = Connection(pt, "out1", closer_pt, "in1", label="70")
+        c71 = Connection(closer_pt, "out1", sp7, "in1", label="71")
+        c72 = Connection(sp7, "out1", sup, "in1", label="72")
+        c75 = Connection(eco, "out1", m5, "in1", label="75")
+        c76 = Connection(sp7, "out2", reh, "in1", label="76")
+        c77 = Connection(reh, "out1", m5, "in2", label="77")
+        c78 = Connection(m5, "out1", ptpump, "in1", label="78")
+        c79 = Connection(ptpump, "out1", pt, "in1", label="79")
+
+        # add connections to network
+        self.nw.add_conns(
+            c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15,
+            c16, c17, c18, c19, c20, c21, c22, c23, c24, c25, c26, c27, c28,
+            c29, c30, c31, c32, c33, c34, c35, c36, c37, c38, c39, c40, c41,
+            c42, c43, c44, c45, c46, c47, c48, c49, c50, c51, c52, c53, c54,
+            c55, c56, c57, c58, c59, c60, c61, c62, c63, c64, c65, c66, c70,
+            c71, c72, c73, c74, c75, c76, c77, c78, c79
+        )
+
+        # power chain
+        gen_hpt1 = Generator("gen hpt1", eta=0.97)
+        gen_hpt2 = Generator("gen hpt2", eta=0.97)
+        gen_lpt1 = Generator("gen lpt1", eta=0.97)
+        gen_lpt2 = Generator("gen lpt2", eta=0.97)
+        gen_lpt3 = Generator("gen lpt3", eta=0.97)
+        gen_lpt4 = Generator("gen lpt4", eta=0.97)
+        gen_lpt5 = Generator("gen lpt5", eta=0.97)
+
+        mot_fwp = Motor("mot fwp", eta=0.95)
+        mot_condpump = Motor("mot condpump", eta=0.95)
+        mot_ptpump = Motor("mot ptpump", eta=0.95)
+        mot_cwp = Motor("mot cwp", eta=0.95)
+        mot_fan = Motor("mot fan", eta=0.95)
+
+        distribution = PowerBus("distribution", num_in=7, num_out=6)
+        grid = PowerSink("grid")
+
+        e1 = PowerConnection(hpt1, "power", gen_hpt1, "power_in", label="e1")
+        e2 = PowerConnection(gen_hpt1, "power_out", distribution, "power_in1", label="e2")
+        e3 = PowerConnection(hpt2, "power", gen_hpt2, "power_in", label="e3")
+        e4 = PowerConnection(gen_hpt2, "power_out", distribution, "power_in2", label="e4")
+        e5 = PowerConnection(lpt1, "power", gen_lpt1, "power_in", label="e5")
+        e6 = PowerConnection(gen_lpt1, "power_out", distribution, "power_in3", label="e6")
+        e7 = PowerConnection(lpt2, "power", gen_lpt2, "power_in", label="e7")
+        e8 = PowerConnection(gen_lpt2, "power_out", distribution, "power_in4", label="e8")
+        e9 = PowerConnection(lpt3, "power", gen_lpt3, "power_in", label="e9")
+        e10 = PowerConnection(gen_lpt3, "power_out", distribution, "power_in5", label="e10")
+        e11 = PowerConnection(lpt4, "power", gen_lpt4, "power_in", label="e11")
+        e12 = PowerConnection(gen_lpt4, "power_out", distribution, "power_in6", label="e12")
+        e13 = PowerConnection(lpt5, "power", gen_lpt5, "power_in", label="e13")
+        e14 = PowerConnection(gen_lpt5, "power_out", distribution, "power_in7", label="e14")
+
+        e15 = PowerConnection(distribution, "power_out1", mot_fwp, "power_in", label="e15")
+        e16 = PowerConnection(mot_fwp, "power_out", fwp, "power", label="e16")
+        e17 = PowerConnection(distribution, "power_out2", mot_condpump, "power_in", label="e17")
+        e18 = PowerConnection(mot_condpump, "power_out", condpump, "power", label="e18")
+        e19 = PowerConnection(distribution, "power_out3", mot_ptpump, "power_in", label="e19")
+        e20 = PowerConnection(mot_ptpump, "power_out", ptpump, "power", label="e20")
+        e21 = PowerConnection(distribution, "power_out4", mot_cwp, "power_in", label="e21")
+        e22 = PowerConnection(mot_cwp, "power_out", cwp, "power", label="e22")
+        e23 = PowerConnection(distribution, "power_out5", mot_fan, "power_in", label="e23")
+        e24 = PowerConnection(mot_fan, "power_out", fan, "power", label="e24")
+        e25 = PowerConnection(distribution, "power_out6", grid, "power", label="e25")
+
+        self.nw.add_conns(
+            e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14,
+            e15, e16, e17, e18, e19, e20, e21, e22, e23, e24, e25
+        )
+
+        # solar heat input
+        solar = HeatSource("solar")
+        h_solar = HeatConnection(solar, "heat", pt, "heat", label="h_solar")
+        self.nw.add_conns(h_solar)
+
+        # component parameters
+        pt.set_attr(dissipative=False)
+
+        ptpump.set_attr(eta_s=0.6)
+
+        eco.set_attr()
+        eva.set_attr(ttd_l=5)
+        sup.set_attr()
+
+        hpt1.set_attr(eta_s=0.8376)
+        hpt2.set_attr(eta_s=0.8463)
+        lpt1.set_attr(eta_s=0.8623)
+        lpt2.set_attr(eta_s=0.917)
+        lpt3.set_attr(eta_s=0.9352)
+        lpt4.set_attr(eta_s=0.88)
+        lpt5.set_attr(eta_s=0.6445)
+
+        cond.set_attr(pr1=1, pr2=0.9, ttd_u=5)
+        condpump.set_attr(eta_s=0.7)
+        fwp.set_attr(eta_s=0.7)
+        cwp.set_attr(eta_s=0.7)
+        ct.set_attr(pr1=0.95)
+        fan.set_attr(eta_s=0.6)
+
+        lppre1.set_attr(pr1=1, ttd_u=5)
+        lppre2.set_attr(pr1=1, ttd_u=5)
+        lppre3.set_attr(pr1=1, ttd_u=5)
+        hppre1.set_attr(pr1=1, ttd_u=5)
+        hppre2.set_attr(pr1=1, ttd_u=5)
+
+        # connection parameters
+        # parabolic trough cycle
+        c70.set_attr(fluid={"INCOMP::TVP1": 1}, T=390, p=23.304)
+        c76.set_attr(m=Ref(c70, 0.1284, 0))
+        c73.set_attr(p=22.753)
+        c74.set_attr(p=21.167)
+        c78.set_attr(p=20.34)
+        c79.set_attr(p=41.024)
+
+        # cooling water
+        c60.set_attr(h0=120)
+        c61.set_attr(h0=122)
+        c63.set_attr(h0=90)
+        c62.set_attr(fluid={"INCOMP::Water": 1}, T=30, p=self.pamb)
+        # cooling tower
+        c64.set_attr(fluid={"air": 1}, p=self.pamb, T=self.Tamb)
+        c65.set_attr(p=self.pamb + 0.0005)
+        c66.set_attr(p=self.pamb, T=30)
+        # power cycle
+        c32.set_attr(td_bubble=2)
+        c34.set_attr(x=0.5)
+        c1.set_attr(fluid={"water": 1}, p=100, T=371)
+
+        # steam generator pressure values
+        c31.set_attr(p=103.56)
+        c35.set_attr(p=103.42)
+
+        # turbine pressure values
+        c3.set_attr(p=33.61, m=38.969)
+        c5.set_attr(p=18.58)
+        c7.set_attr(p=17.1, T=371)
+        c8.set_attr(p=7.98)
+        c10.set_attr(p=2.73)
+        c12.set_attr(p=0.96)
+        c14.set_attr(p=0.29)
+
+        # preheater pressure values
+        c19.set_attr(p=14.755)
+        c21.set_attr(p=9.9975)
+        c23.set_attr(p=8.7012)
+
+        c27.set_attr(p=125)
+        c29.set_attr(p=112)
+
+        # condensation
+        c16.set_attr(p=0.08)
+
+        # feedwater tank
+        c26.set_attr(x=0)
+
+        # subcoolers
+        lppre1_sub.set_attr(pr1=1, pr2=1, ttd_l=10)
+        lppre2_sub.set_attr(pr1=1, pr2=1, ttd_l=10)
+        lppre3_sub.set_attr(pr1=1, pr2=1, ttd_l=10)
+        hppre1_sub.set_attr(pr1=1, pr2=1, ttd_l=10)
+        hppre2_sub.set_attr(pr1=1, pr2=1, ttd_l=10)
+
+    def _parameter_lookup(self):
+        return {
+            "grid power": ["Connections", "e25", "E"],
+            "solar heat input": ["Connections", "h_solar", "E"],
+            "live steam pressure": ["Connections", "1", "p"],
+            "live steam temperature": ["Connections", "1", "T"],
+            "reheat temperature": ["Connections", "7", "T"],
+            "condenser pressure": ["Connections", "16", "p"],
+            "HTF temperature": ["Connections", "70", "T"],
+            "HTF return temperature": ["Connections", "79", "T"],
+            "HP turbine 1 mass flow": ["Connections", "3", "m"],
+            "thermal efficiency": {"get": self._calc_thermal_efficiency},
+        }
+
+    def _calc_thermal_efficiency(self):
+        return (
+            self.nw.get_conn("e25").E.val_SI
+            / self.nw.get_conn("h_solar").E.val_SI
+        )
+
+    def create_diagram(self, fluid_name):
+        """Fluid property diagram with isolines suited for the water cycle.
+
+        The default isoline range of the base class starts at -20 °C,
+        which lies in the solid region of water at high pressure and
+        fails in CoolProp.
+        """
+        diagram = FluidPropertyDiagram(fluid_name)
+        diagram.set_unit_system(self.nw.units)
+        diagram.set_isolines_subcritical(5, 550)
+        diagram.calc_isolines()
+        return diagram
+
+    def solve_model(self, **kwargs):
+        self.solve_model_design(**kwargs)
+
+    def solve_design(self):
+        self.nw.solve(mode="design")
+        self.nw.assert_convergence()
+
+    def run_exergy_analysis(self):
+        E_F = {"inputs": ["h_solar"], "outputs": []}
+        E_P = {"inputs": ["e25"], "outputs": []}
+        E_L = {"inputs": ["66"], "outputs": ["64"]}
+        return super().run_exergy_analysis(
+            self.Tamb, self.pamb, E_F=E_F, E_P=E_P, E_L=E_L
+        )
 
 
-fmt_dict = {
-    'E_F': {
-        'unit': ' in MW',
-        'float': '{:.2f}',
-        'factor': 1e6,
-    },
-    'E_P': {
-        'unit': ' in MW',
-        'float': '{:.2f}',
-        'factor': 1e6,
-    },
-    'E_D': {
-        'unit': ' in MW',
-        'float': '{:.2f}',
-        'factor': 1e6,
-    },
-    'E_L': {
-        'unit': ' in MW',
-        'float': '{:.2f}',
-        'factor': 1e6,
-    },
-    'epsilon': {
-        'unit': ' in %',
-        'float': '{:.1f}',
-        'factor': 1 / 100,
-        'markdown_header': 'ε'
-    },
-    'y_Dk': {
-        'unit': ' in %',
-        'float': '{:.1f}',
-        'factor': 1 / 100
-    },
-    'y*_Dk': {
-        'unit': ' in %',
-        'float': '{:.1f}',
-        'factor': 1 / 100
-    },
-    'e_T': {
-        'unit': ' in kJ/kg',
-        'float': '{:.1f}',
-        'factor': 1000
-    },
-    'e_M': {
-        'unit': ' in kJ/kg',
-        'float': '{:.1f}',
-        'factor': 1000
-    },
-    'e_PH': {
-        'unit': ' in kJ/kg',
-        'float': '{:.1f}',
-        'factor': 1000
-    },
-    'E_T': {
-        'unit': ' in MW',
-        'float': '{:.2f}',
-        'factor': 1e6
-    },
-    'E_M': {
-        'unit': ' in MW',
-        'float': '{:.2f}',
-        'factor': 1e6
-    },
-    'E_PH': {
-        'unit': ' in MW',
-        'float': '{:.2f}',
-        'factor': 1e6
-    },
-    'T': {
-        'unit': ' in °C',
-        'float': '{:.1f}',
-        'factor': 1
-    },
-    'p': {
-        'unit': ' in bar',
-        'float': '{:.2f}',
-        'factor': 1
-    },
-    'h': {
-        'unit': ' in kJ/kg',
-        'float': '{:.1f}',
-        'factor': 1
-    }
+# (format string, column header with unit) — all values in display units
+_COL_FMT = {
+    "T": ("{:.1f}", "T in °C"),
+    "p": ("{:.2f}", "p in bar"),
+    "e_T": ("{:.1f}", "e_T in kJ/kg"),
+    "e_M": ("{:.1f}", "e_M in kJ/kg"),
+    "e_PH": ("{:.1f}", "e_PH in kJ/kg"),
+    "E_T": ("{:.2f}", "E_T in MW"),
+    "E_M": ("{:.2f}", "E_M in MW"),
+    "E_PH": ("{:.2f}", "E_PH in MW"),
+    "E_F": ("{:.2f}", "E_F in MW"),
+    "E_P": ("{:.2f}", "E_P in MW"),
+    "E_D": ("{:.2f}", "E_D in MW"),
+    "E_L": ("{:.2f}", "E_L in MW"),
+    "epsilon": ("{:.1f}", "ε in %"),
+    "y_Dk": ("{:.1f}", "y_Dk in %"),
+    "y*_Dk": ("{:.1f}", "y*_Dk in %"),
 }
 
 
-def result_to_markdown(df, filename, prefix=''):
-
+def result_to_markdown(df, filename, prefix=""):
+    df = df.copy()
+    rename = {}
     for col in df.columns:
-        fmt = fmt_dict[col]['float']
-        if prefix == 'δ ':
-            unit = ' in %'
-            df[col] *= 100
+        fmt, header = _COL_FMT[col]
+        if prefix == "δ ":
+            df[col] = (df[col] * 100).apply(fmt.format)
+            rename[col] = prefix + col + " in %"
         else:
-            unit = fmt_dict[col]['unit']
-            df[col] /= fmt_dict[col]['factor']
-        for row in df.index:
-            df.loc[row, col] = str(fmt.format(df.loc[row, col]))
-        if 'markdown_header' not in fmt_dict[col]:
-            fmt_dict[col]['markdown_header'] = col
+            df[col] = df[col].apply(fmt.format)
+            rename[col] = prefix + header
+    df.rename(columns=rename, inplace=True)
+    df.to_markdown(filename, disable_numparse=True,
+                   colalign=["left"] + ["right"] * len(df.columns))
 
-        df = df.rename(columns={
-            col: prefix + fmt_dict[col]['markdown_header'] + unit
-        })
-    df.to_markdown(
-        filename, disable_numparse=True,
-        colalign=['left'] + ['right' for _ in df.columns]
+
+def export_results(model):
+    """Export exergy analysis results to markdown tables."""
+    ean = model._ean
+    df_components, df_connections, df_power = ean.exergy_results(
+        print_results=False
     )
 
+    # connections: specific exergy (kJ/kg) and exergy flow (MW)
+    df_conn_exp = df_connections.set_index("Connection").copy()
+    df_conn_exp.index = pd.to_numeric(df_conn_exp.index, errors="coerce")
+    df_conn_exp = df_conn_exp[df_conn_exp.index.notna()]
+    df_conn_exp.index = df_conn_exp.index.astype(int)
+    df_conn_exp.sort_index(inplace=True)
+    df_conn_exp["e_PH"] = df_conn_exp["e^PH [kJ/kg]"]
+    df_conn_exp["e_T"] = df_conn_exp["e^T [kJ/kg]"]
+    df_conn_exp["e_M"] = df_conn_exp["e^M [kJ/kg]"]
+    df_conn_exp["E_PH"] = df_conn_exp["m [kg/s]"] * df_conn_exp["e_PH"] / 1e3
+    df_conn_exp["E_T"] = df_conn_exp["m [kg/s]"] * df_conn_exp["e_T"] / 1e3
+    df_conn_exp["E_M"] = df_conn_exp["m [kg/s]"] * df_conn_exp["e_M"] / 1e3
+    result_to_markdown(
+        df_conn_exp[["e_PH", "e_T", "e_M", "E_PH", "E_T", "E_M"]],
+        "connections_result"
+    )
 
-# specification of ambient state
-pamb = 1.013
-Tamb = 25
+    # components: E in kW from exerpy -> MW; ε and y already in %
+    df_comp_exp = df_components.set_index("Component").rename(columns={
+        "E_F [kW]": "E_F", "E_P [kW]": "E_P", "E_D [kW]": "E_D",
+        "epsilon [%]": "epsilon", "y [%]": "y_Dk", "y* [%]": "y*_Dk",
+    }).drop(index="TOT", errors="ignore")
+    df_comp_exp[["E_F", "E_P", "E_D"]] /= 1e3
+    result_to_markdown(
+        df_comp_exp[["E_F", "E_P", "E_D", "epsilon", "y_Dk", "y*_Dk"]],
+        "components_result"
+    )
 
-
-# setting up network
-# setting up network
-nw = Network()
-nw.set_attr(
-    T_unit='C', p_unit='bar', h_unit='kJ / kg', m_unit='kg / s',
-    s_unit="kJ / kgK")
-
-# components definition
-air_in = Source('Ambient air source', fkt_group='CW')
-air_out = Sink('Ambient air sink', fkt_group='CW')
-
-closer_pt = CycleCloser('Cycle closer pt', fkt_group='SF')
-pt = ParabolicTrough('Parabolic trough', fkt_group='SF')
-ptpump = Pump('HTF pump', fkt_group='SF')
-
-closer = CycleCloser('Cycle closer power cycle', fkt_group='SG')
-
-eco = HeatExchanger('Economizer', fkt_group='SG')
-eva = HeatExchanger('Evaporator', fkt_group='SG')
-sup = HeatExchanger('Superheater', fkt_group='SG')
-drum = Drum('Drum', fkt_group='SG')
-
-reh = HeatExchanger('Reheater', fkt_group='RH')
-
-hpt1 = Turbine('HP turbine 1', fkt_group='HPT')
-hpt2 = Turbine('HP turbine 2', fkt_group='HPT')
-lpt1 = Turbine('LP turbine 1', fkt_group='LPT')
-lpt2 = Turbine('LP turbine 2', fkt_group='LPT')
-lpt3 = Turbine('LP turbine 3', fkt_group='LPT')
-lpt4 = Turbine('LP turbine 4', fkt_group='LPT')
-lpt5 = Turbine('LP turbine 5', fkt_group='LPT')
-
-cond = Condenser('Condenser', fkt_group='CW')
-condpump = Pump('Condenser pump', fkt_group='CW')
-fwt = Merge('Feedwater tank', num_in=3, fkt_group='LPP')
-fwp = Pump('Feedwater pump', fkt_group='FWP')
-cwp = Pump('Cooling water pump', fkt_group='CW')
-closer_cw = CycleCloser('Cycle closer cw', fkt_group='CW')
-ct = HeatExchanger('Cooling tower', fkt_group='CW')
-fan = Compressor('Cooling tower fan', fkt_group='CW')
-
-sp1 = Splitter('Splitter 1', fkt_group='HPT')
-sp2 = Splitter('Splitter 2', fkt_group='HPT')
-sp3 = Splitter('Splitter 3', fkt_group='LPT')
-sp4 = Splitter('Splitter 4', fkt_group='LPT')
-sp5 = Splitter('Splitter 5', fkt_group='LPT')
-sp6 = Splitter('Splitter 6', fkt_group='LPT')
-sp7 = Splitter('Splitter 7', fkt_group='SF')
-
-m1 = Merge('Merge 1', fkt_group='CW')
-m2 = Merge('Merge 2', fkt_group='HPP')
-m3 = Merge('Merge 3', fkt_group='LPP')
-m4 = Merge('Merge 4', fkt_group='LPP')
-m5 = Merge('Merge 5', fkt_group='SF')
-
-v1 = Valve('Valve 1', fkt_group='HPP')
-v2 = Valve('Valve 2', fkt_group='HPP')
-v3 = Valve('Valve 3', fkt_group='LPP')
-v4 = Valve('Valve 4', fkt_group='LPP')
-v5 = Valve('Valve 5', fkt_group='LPP')
-
-hppre1 = Condenser('High pressure preheater 1', fkt_group='HPP')
-hppre2 = Condenser('High pressure preheater 2', fkt_group='HPP')
-hppre1_sub = HeatExchanger(
-    'High pressure preheater 1 subcooling', fkt_group='HPP')
-hppre2_sub = HeatExchanger(
-    'High pressure preheater 2 subcooling', fkt_group='HPP')
-
-lppre1 = Condenser('Low pressure preheater 1', fkt_group='LPP')
-lppre2 = Condenser('Low pressure preheater 2', fkt_group='LPP')
-lppre3 = Condenser('Low pressure preheater 3', fkt_group='LPP')
-lppre1_sub = HeatExchanger(
-    'Low pressure preheater 1 subcooling', fkt_group='LPP')
-lppre2_sub = HeatExchanger(
-    'Low pressure preheater 2 subcooling', fkt_group='LPP')
-lppre3_sub = HeatExchanger(
-    'Low pressure preheater 3 subcooling', fkt_group='LPP')
-
-# connections definition
-# power cycle
-c1 = Connection(sup, 'out2', closer, 'in1', label='1')
-c2 = Connection(closer, 'out1', hpt1, 'in1', label='2')
-c3 = Connection(hpt1, 'out1', sp1, 'in1', label='3')
-c4 = Connection(sp1, 'out1', hpt2, 'in1', label='4')
-c5 = Connection(hpt2, 'out1', sp2, 'in1', label='5')
-c6 = Connection(sp2, 'out1', reh, 'in2', label='6')
-c7 = Connection(reh, 'out2', lpt1, 'in1', label='7')
-c8 = Connection(lpt1, 'out1', sp3, 'in1', label='8')
-c9 = Connection(sp3, 'out1', lpt2, 'in1', label='9')
-c10 = Connection(lpt2, 'out1', sp4, 'in1', label='10')
-c11 = Connection(sp4, 'out1', lpt3, 'in1', label='11')
-c12 = Connection(lpt3, 'out1', sp5, 'in1', label='12')
-c13 = Connection(sp5, 'out1', lpt4, 'in1', label='13')
-c14 = Connection(lpt4, 'out1', sp6, 'in1', label='14')
-c15 = Connection(sp6, 'out1', lpt5, 'in1', label='15')
-c16 = Connection(lpt5, 'out1', m1, 'in1', label='16')
-c17 = Connection(m1, 'out1', cond, 'in1', label='17')
-
-c18 = Connection(cond, 'out1', condpump, 'in1', label='18')
-c19 = Connection(condpump, 'out1', lppre1_sub, 'in2', label='19')
-c20 = Connection(lppre1_sub, 'out2', lppre1, 'in2', label='20')
-c21 = Connection(lppre1, 'out2', lppre2_sub, 'in2', label='21')
-c22 = Connection(lppre2_sub, 'out2', lppre2, 'in2', label='22')
-c23 = Connection(lppre2, 'out2', lppre3_sub, 'in2', label='23')
-c24 = Connection(lppre3_sub, 'out2', lppre3, 'in2', label='24')
-c25 = Connection(lppre3, 'out2', fwt, 'in1', label='25')
-
-c26 = Connection(fwt, 'out1', fwp, 'in1', label='26')
-c27 = Connection(fwp, 'out1', hppre1_sub, 'in2', label='27')
-c28 = Connection(hppre1_sub, 'out2', hppre1, 'in2', label='28')
-c29 = Connection(hppre1, 'out2', hppre2_sub, 'in2', label='29')
-c30 = Connection(hppre2_sub, 'out2', hppre2, 'in2', label='30')
-c31 = Connection(hppre2, 'out2', eco, 'in2', label='31')
-
-c36 = Connection(sp1, 'out2', hppre2, 'in1', label='36')
-c37 = Connection(hppre2, 'out1', hppre2_sub, 'in1', label='37')
-c38 = Connection(hppre2_sub, 'out1', v1, 'in1', label='38')
-c39 = Connection(v1, 'out1', m2, 'in2', label='39')
-c40 = Connection(sp2, 'out2', m2, 'in1', label='40')
-
-c41 = Connection(m2, 'out1', hppre1, 'in1', label='41')
-c42 = Connection(hppre1, 'out1', hppre1_sub, 'in1', label='42')
-c43 = Connection(hppre1_sub, 'out1', v2, 'in1', label='43')
-c44 = Connection(v2, 'out1', fwt, 'in2', label='44')
-c45 = Connection(sp3, 'out2', fwt, 'in3', label='45')
-
-c46 = Connection(sp4, 'out2', lppre3, 'in1', label='46')
-c47 = Connection(lppre3, 'out1', lppre3_sub, 'in1', label='47')
-c48 = Connection(lppre3_sub, 'out1', v3, 'in1', label='48')
-c49 = Connection(v3, 'out1', m3, 'in1', label='49')
-c50 = Connection(sp5, 'out2', m3, 'in2', label='50')
-
-c51 = Connection(m3, 'out1', lppre2, 'in1', label='51')
-c52 = Connection(lppre2, 'out1', lppre2_sub, 'in1', label='52')
-c53 = Connection(lppre2_sub, 'out1', v4, 'in1', label='53')
-c54 = Connection(v4, 'out1', m4, 'in2', label='54')
-c55 = Connection(sp6, 'out2', m4, 'in1', label='55')
-
-c56 = Connection(m4, 'out1', lppre1, 'in1', label='56')
-c57 = Connection(lppre1, 'out1', lppre1_sub, 'in1', label='57')
-c58 = Connection(lppre1_sub, 'out1', v5, 'in1', label='58')
-c59 = Connection(v5, 'out1', m1, 'in2', label='59')
-
-# components from subsystem
-c32 = Connection(eco, 'out2', drum, 'in1', label='32')
-c33 = Connection(drum, 'out1', eva, 'in2', label='33')
-c34 = Connection(eva, 'out2', drum, 'in2', label='34')
-c35 = Connection(drum, 'out2', sup, 'in2', label='35')
-c73 = Connection(sup, 'out1', eva, 'in1', label='73')
-c74 = Connection(eva, 'out1', eco, 'in1', label='74')
-
-# cooling water
-c60 = Connection(cond, 'out2', closer_cw, 'in1', label='60')
-c61 = Connection(closer_cw, 'out1', ct, 'in1', label='61')
-c62 = Connection(ct, 'out1', cwp, 'in1', label='62')
-c63 = Connection(cwp, 'out1', cond, 'in2', label='63')
-
-# cooling tower
-c64 = Connection(air_in, 'out1', fan, 'in1', label='64')
-c65 = Connection(fan, 'out1', ct, 'in2', label='65')
-c66 = Connection(ct, 'out2', air_out, 'in1', label='66')
-
-# parabolic trough cycle
-c70 = Connection(pt, 'out1', closer_pt, 'in1', label='70')
-c71 = Connection(closer_pt, 'out1', sp7, 'in1', label='71')
-c72 = Connection(sp7, 'out1', sup, 'in1', label='72')
-c75 = Connection(eco, 'out1', m5, 'in1', label='75')
-c76 = Connection(sp7, 'out2', reh, 'in1', label='76')
-c77 = Connection(reh, 'out1', m5, 'in2', label='77')
-c78 = Connection(m5, 'out1', ptpump, 'in1', label='78')
-c79 = Connection(ptpump, 'out1', pt, 'in1', label='79')
-
-# add connections to network
-nw.add_conns(
-    c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15,
-    c16, c17, c18, c19, c20, c21, c22, c23, c24, c25, c26, c27, c28,
-    c29, c30, c31, c32, c33, c34, c35, c36, c37, c38, c39, c40, c41,
-    c42, c43, c44, c45, c46, c47, c48, c49, c50, c51, c52, c53, c54,
-    c55, c56, c57, c58, c59, c60, c61, c62, c63, c64, c65, c66, c70,
-    c71, c72, c73, c74, c75, c76, c77, c78, c79
-)
-
-# power bus
-power = Bus('total output power')
-power.add_comps(
-    {'comp': hpt1, 'char': 0.97, 'base': 'component'},
-    {'comp': hpt2, 'char': 0.97, 'base': 'component'},
-    {'comp': lpt1, 'char': 0.97, 'base': 'component'},
-    {'comp': lpt2, 'char': 0.97, 'base': 'component'},
-    {'comp': lpt3, 'char': 0.97, 'base': 'component'},
-    {'comp': lpt4, 'char': 0.97, 'base': 'component'},
-    {'comp': lpt5, 'char': 0.97, 'base': 'component'},
-    {'comp': fwp, 'char': 0.95, 'base': 'bus'},
-    {'comp': condpump, 'char': 0.95, 'base': 'bus'},
-    {'comp': ptpump, 'char': 0.95, 'base': 'bus'},
-    {'comp': cwp, 'char': 0.95, 'base': 'bus'},
-    {'comp': fan, 'char': 0.95, 'base': 'bus'})
-
-heat_input_bus = Bus('heat input')
-heat_input_bus.add_comps({'comp': pt, 'base': 'bus'})
-
-exergy_loss_bus = Bus('exergy loss')
-exergy_loss_bus.add_comps(
-    {'comp': air_in, 'base': 'bus'}, {'comp': air_out})
-
-nw.add_busses(power, heat_input_bus, exergy_loss_bus)
-
-# component parameters
-pt.set_attr(dissipative=False)
-
-ptpump.set_attr(eta_s=0.6)
-
-eco.set_attr()
-eva.set_attr(ttd_l=5)
-sup.set_attr()
-
-hpt1.set_attr(eta_s=0.8376)
-hpt2.set_attr(eta_s=0.8463)
-lpt1.set_attr(eta_s=0.8623)
-lpt2.set_attr(eta_s=0.917)
-lpt3.set_attr(eta_s=0.9352)
-lpt4.set_attr(eta_s=0.88)
-lpt5.set_attr(eta_s=0.6445)
-
-cond.set_attr(pr1=1, pr2=0.9, ttd_u=5)
-condpump.set_attr(eta_s=0.7)
-fwp.set_attr(eta_s=0.7)
-cwp.set_attr(eta_s=0.7)
-ct.set_attr(pr1=0.95)
-fan.set_attr(eta_s=0.6)
-
-lppre1.set_attr(pr1=1, ttd_u=5)
-lppre2.set_attr(pr1=1, ttd_u=5)
-lppre3.set_attr(pr1=1, ttd_u=5)
-hppre1.set_attr(pr1=1, ttd_u=5)
-hppre2.set_attr(pr1=1, ttd_u=5)
-
-# connection parameters
-# parabolic trough cycle
-c70.set_attr(fluid={'INCOMP::TVP1': 1}, T=390, p=23.304)
-c76.set_attr(m=Ref(c70, 0.1284, 0))
-c73.set_attr(p=22.753)
-c74.set_attr(p=21.167)
-c78.set_attr(p=20.34)
-c79.set_attr(p=41.024)
-
-# cooling water
-c60.set_attr(h0=120)
-c61.set_attr(h0=122)
-c63.set_attr(h0=90)
-c62.set_attr(fluid={'INCOMP::Water': 1}, T=30, p=pamb)
-# cooling tower
-c64.set_attr(fluid={'air': 1}, p=pamb, T=Tamb)
-c65.set_attr(p=pamb + 0.0005)
-c66.set_attr(p=pamb, T=30)
-# power cycle
-c32.set_attr(Td_bp=-2)
-c34.set_attr(x=0.5)
-c1.set_attr(fluid={'water': 1}, p=100, T=371)
-
-# steam generator pressure values
-c31.set_attr(p=103.56)
-c35.set_attr(p=103.42)
-
-# turbine pressure values
-c3.set_attr(p=33.61, m=38.969)
-c5.set_attr(p=18.58)
-c7.set_attr(p=17.1, T=371)
-c8.set_attr(p=7.98)
-c10.set_attr(p=2.73)
-c12.set_attr(p=0.96)
-c14.set_attr(p=0.29)
-
-# preheater pressure values
-c19.set_attr(p=14.755, state='l')
-c21.set_attr(p=9.9975, state='l')
-c23.set_attr(p=8.7012, state='l')
-c25.set_attr(state='l')
-
-c27.set_attr(p=125)
-c29.set_attr(p=112)
-
-# condensation
-c16.set_attr(p=0.08)
-
-# feedwater tank
-c26.set_attr(x=0)
-
-# subcoolers
-c48.set_attr(Td_bp=-10)
-c53.set_attr(Td_bp=-10)
-c58.set_attr(Td_bp=-10)
-
-lppre1_sub.set_attr(pr1=1, pr2=1)
-lppre2_sub.set_attr(pr1=1, pr2=1)
-lppre3_sub.set_attr(pr1=1, pr2=1)
-hppre1_sub.set_attr(pr1=1, pr2=1, ttd_l=10)
-hppre2_sub.set_attr(pr1=1, pr2=1, ttd_l=10)
-
-# solve inital state
-nw.solve(mode='design', robust_relax=True)
-
-c48.set_attr(Td_bp=None)
-c53.set_attr(Td_bp=None)
-c58.set_attr(Td_bp=None)
-lppre1_sub.set_attr(ttd_l=10)
-lppre2_sub.set_attr(ttd_l=10)
-lppre3_sub.set_attr(ttd_l=10)
-
-nw.solve(mode='design')
-
-# print results to prompt and generate model documentation
-nw.print_results()
-
-# carry out exergy analysis
-ean = ExergyAnalysis(nw, E_P=[power], E_F=[heat_input_bus], E_L=[exergy_loss_bus])
-ean.analyse(pamb=pamb, Tamb=Tamb)
-
-# print exergy analysis results to prompt
-ean.print_results()
-
-# generate Grassmann diagram
-links, nodes = ean.generate_plotly_sankey_input()
-
-# norm values to to E_F
-links['value'] = [val / links['value'][0] for val in links['value']]
-
-fig = go.Figure(go.Sankey(
-    arrangement="snap",
-    textfont={"family": "Linux Libertine O"},
-    node={
-        "label": nodes,
-        'pad': 11,
-        'color': 'orange'},
-    link=links))
-fig.show()
+    # network
+    network_result = pd.DataFrame({
+        "E_F": [ean.E_F / 1e6],
+        "E_P": [ean.E_P / 1e6],
+        "E_D": [ean.E_D / 1e6],
+        "E_L": [ean.E_L / 1e6],
+        "epsilon": [ean.epsilon * 100],
+    })
+    result_to_markdown(network_result, "network_result")
 
 
-# export results
+def validate(model):
+    """Compare key results against the EBSILON reference model."""
+    reference = {
+        # value, EBSILON result, unit
+        "grid power": (31.769, "MW", 1e-6),
+        "HTF return temperature": (296.254, "°C", 1),
+    }
+    rows = []
+    for param, (ref_value, unit, factor) in reference.items():
+        tespy_value = model.get_parameter(param) * factor
+        rows.append({
+            "parameter": f"{param} in {unit}",
+            "TESPy": round(tespy_value, 3),
+            "EBSILON": ref_value,
+            "δ in %": round((tespy_value - ref_value) / ref_value * 100, 3),
+        })
+    df = pd.DataFrame(rows).set_index("parameter")
+    df.to_markdown("validation_result")
+    return df
 
-network_result = ean.network_data.to_frame().transpose()
 
-ean.aggregation_data.drop(columns=['group'], inplace=True)
-result_to_markdown(ean.aggregation_data, 'components_result')
-result_to_markdown(ean.connection_data, 'connections_result')
-result_to_markdown(network_result, 'network_result')
+def main():
+    model = SEGSModel()
+    model.solve_design()
+    model.nw.print_results()
+
+    # validation vs EBSILON
+    print(validate(model))
+
+    # carry out exergy analysis and export results
+    model.run_exergy_analysis()
+    export_results(model)
+
+
+if __name__ == "__main__":
+    main()

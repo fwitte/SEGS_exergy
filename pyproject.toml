@@ -1,0 +1,10 @@
+[project]
+name = "segs-exergy"
+version = "0.1.0"
+description = "Exergy analysis of a solar thermal power plant (SEGS) in TESPy"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "exerpy>=0.0.10",
+    "tespy>=0.11.0",
+]
